@@ -10,8 +10,14 @@ import org.jnect.core.KinectManager;
 public class AngleTracker implements Runnable {
 	public static AngleTracker INSTANCE = new AngleTracker();
 
+	int repet=0;
+	boolean block=true;
+	//private Classifieur classif;
+	private float[] vector = new float[120];
 	PrintWriter pw;
 	boolean isAlive = true;
+	int i = -100; // on s'assure que les 100 premières mesures ne sont pas dans le classifieur.
+				// Car elles correspondent à la mise en place du sportif devant la caméra.
 
 	private AngleTracker() {
 		File file = new File(System.getProperty("user.dir") + File.separator
@@ -28,11 +34,15 @@ public class AngleTracker implements Runnable {
 		KinectManager.INSTANCE.startKinect();
 		KinectManager.INSTANCE.startSkeletonTracking();
 		
-		float Adbbis = 400; // au delà de 360 pour etre sur que Adbbis différent
+		                                    // au delà de 360 pour etre sur que Adbbis différent
 		float Adjbis = 400;		            // de Adb au départ
-
+		
+		long totalTime = 0;
+		
 		while (isAlive) { // permettra de sortir de la boucle en mettant isAlive a false.
 
+			long startTime = System.currentTimeMillis(); // pour calculer le temps entre deux prints
+			
 			Body body = KinectManager.INSTANCE.getSkeletonModel();
 
 			/****************GETTER DE TOUS LES MEMBRES*****************/
@@ -156,9 +166,6 @@ public class AngleTracker implements Runnable {
 			else { Adb = 360 - (float) (Math.acos(produitScalaire / produitNorme) * 180 / Math.PI);
 			}
 			
-			if (Adb != Adbbis && Ychip != 0) {
-				Adbbis = Adb;
-			}
 				
 	/*********Angle entre les 2 jambes Adj *********************/
 				
@@ -174,20 +181,74 @@ public class AngleTracker implements Runnable {
 				
 				Adj = (float) (Math.acos(produitScalairej / produitNormej) * 180 / Math.PI);
 				
-				if (Adj != Adjbis && Ychip != 0) {
+	/****************** angle entre la jambe droite et le bras droit *******************************/
+				
+				float produitScalaireD = (Xrknee - Xrhip) * (Xrh - Xrs) + (Yrknee - Yrhip)
+						* (Yrh - Yrs);
+				float produitNormeD = normeRj * normeR;
+				float AdD;
+				
+				AdD = (float) (Math.acos(produitScalaireD / produitNormeD) * 180 / Math.PI);
+				
+	/****************** angle entre la jambe gauche et le bras gauche ******************************/
+				
+				float produitScalaireG = (Xlknee - Xlhip) * (Xlh - Xls) + (Ylknee - Ylhip)
+						* (Ylh - Yls);
+				float produitNormeG = normeLj * normeL;
+				float AdL;
+				
+				AdL = (float) (Math.acos(produitScalaireG / produitNormeG) * 180 / Math.PI);
+				
+	/**************** calcul du temps entre deux impressions ***************************************/
+				
+				long endIntermediateTime = System.currentTimeMillis(); // on introduit ces temps intermediaire  car seul le temps entre deux print nous interesse
+				long totalIntermediateTime = endIntermediateTime - startTime;
+				totalTime = totalTime + totalIntermediateTime;
+				
+   /***********************************     print  et setAngle    ****************************/
+				if ( (Adj != Adjbis ) && (Ychip != 0) ) { // on evite de répéter les mêmes angles 
 					Adjbis = Adj;
 					
-   /***********************************     Print      ****************************/
+				/********************** setAngle ******************/
+				
+				/*if ( i>=0 && i<=19 ){ //19 pour avoir 20 prises de positions pour chaque angle.
+					this.classif.setAngle(i,Adb);
+					this.classif.setAngle(i+20,Adj);
+					this.classif.setAngle(i+40,AdD);
+					this.classif.setAngle(i+60,AdL);
+				}
+			*/
+					if ( i>=0 && i<=29 ){ //19 pour avoir 20 prises de positions pour chaque angle.
+						this.vector[i]=Adb;
+						this.vector[i+30]=Adj;
+						this.vector[i+60]=AdD;
+						this.vector[i+90]=AdL;
+					}
+				i=i+1;
+				/*********************  print *********************/
+				 
+				
+				
 				System.out.println("angle entre les deux bras: " + Adb 
-						+ "angle entre les deux jambes: " + Adj );
+						+ " angle entre les deux jambes: " + Adj
+						+ "angle entre le bras droit et la jambe droite: " + AdD
+						+ "angle entre le bras gauche et la jambe gauche: " + AdL
+						+ " temps de l'iteration: " + totalTime
+						+ "repetition: " + repet);
 				System.out.println();
 
-				try {
+				/* try {
 
 					pw.append( "angle entre les deux bras: "
 							+ Adb + System.getProperty("line.separator")
 							+ "angle entre les deux jambes: "
 							+ Adj + System.getProperty("line.separator")
+							+ "angle entre le bras droit et la jambe droite: "
+							+ AdD + System.getProperty("line.separator")
+							+ "angle entre le bras gauche et la jambe gauche: "
+							+ AdL + System.getProperty("line.separator")
+							+ "temps de l'itération: "
+							+ totalTime + System.getProperty("line.separator")
 							+ System.getProperty("line.separator"));
 					pw.flush();
 
@@ -197,13 +258,66 @@ public class AngleTracker implements Runnable {
 
 					
 				}
-			}
-		}
+				*/
+				
+				if(block==true && Adb >= 300){
+					repet=repet+1;
+					block=false;
+				}
+				
+				if (block==false && Adb <= 50){
+					block=true;
+				}
+				
+			totalTime = 0;
+			if(i==29){
+				try {
 
+					for ( int j=0;j<=119;j++){
+						pw.append(this.vector[j]+";");	
+					}
+						//pw.flush();
+
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace(); 
+
+					
+				}	
+			}
+			
+			if(repet>=5){
+			pw.append(System.getProperty("line.separator")+repet);
+			}
+			
+			pw.flush();
+			
+		}
+				
+				
+		}
+		
 		KinectManager.INSTANCE.stopKinect();
 	}
 
-	
+	/*public final void saveClassifToTextFile(){
+		
+		try {
+
+			for ( int j=0;j<=19;j++){
+				pw.append(this.classif.getAngle(j)+";");
+			}
+			
+			pw.flush();
+
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace(); 
+
+			
+		}	
+	}
+	*/
 	public void stop() {
 		isAlive = false;
 
@@ -217,6 +331,8 @@ public class AngleTracker implements Runnable {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		
+		//saveClassifToTextFile();
 	}
 
 }
